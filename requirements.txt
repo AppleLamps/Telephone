@@ -1,20 +1,48 @@
 # Telegram Bot
 python-telegram-bot==21.3
 
-# Crypto & Blockchain
+# Crypto & Blockchain - Ethereum
 web3>=6.0.0
+eth-account>=0.9.0
+eth-abi>=4.0.0
+eth-utils>=2.3.0
+
+# Crypto & Blockchain - Solana
 solana>=0.30.0
 solders>=0.18.0
-base58>=2.1.0
-eth-account>=0.9.0
+
+# Crypto & Blockchain - Bitcoin
 bitcoinlib>=0.6.0
 blockcypher>=1.0.0
+
+# Crypto & Blockchain - Other Chains
+tronpy>=0.4.0
+xrpl-py>=2.4.0
+stellar-sdk>=9.0.0
+
+# Crypto - Wallets & Keys
+hdwallet>=2.2.1
+mnemonic>=0.20
+base58>=2.1.0
+bip32utils>=0.3.0
+
+# Crypto - Cryptography
 pycryptodome>=3.19.0
+coincurve>=18.0.0
+pynacl>=1.5.0
+ecdsa>=0.18.0
+cryptography>=41.0.0
+
+# Exchange APIs
+ccxt>=4.1.0
+python-binance>=1.0.19
+pycoingecko>=3.1.0
 
 # HTTP & Networking
 requests>=2.31.0
 aiohttp>=3.9.0
 httpx>=0.25.0
+websockets>=12.0
 
 # Data Processing
 numpy>=1.24.0

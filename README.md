@@ -5,11 +5,10 @@ A powerful Telegram bot that executes Python code with full library support incl
 ## Features
 
 - **Full Python Execution**: Run any Python code without restrictions
-- **Crypto Libraries**: web3, solana, solders, bitcoinlib, eth-account, and more
-- **Network Access**: Make HTTP requests to APIs (blockchain explorers, etc.)
+- **Crypto Libraries**: web3, solana, bitcoinlib, ccxt, and 30+ more
+- **Network Access**: Make HTTP requests to APIs (blockchain explorers, exchanges, etc.)
 - **Timeout Protection**: Configurable timeout (default 60s)
 - **User Authorization**: Optional whitelist for allowed users
-- **Pre-installed Libraries**: numpy, pandas, requests, aiohttp, and crypto packages
 
 ## Quick Deploy to Railway
 
@@ -95,33 +94,87 @@ btc = satoshis / 100000000
 print(f"Balance: {btc} BTC")
 ```
 
-**Data Processing:**
+**Get Crypto Prices (CoinGecko):**
 
 ```python
-import numpy as np
-import pandas as pd
+from pycoingecko import CoinGeckoAPI
 
-data = {'prices': [100, 150, 120, 180, 200]}
-df = pd.DataFrame(data)
-print(f"Mean: {df['prices'].mean()}")
-print(f"Max: {df['prices'].max()}")
+cg = CoinGeckoAPI()
+prices = cg.get_price(ids='bitcoin,ethereum,solana', vs_currencies='usd')
+for coin, data in prices.items():
+    print(f"{coin.upper()}: ${data['usd']:,.2f}")
+```
+
+**Check Exchange Balance (CCXT):**
+
+```python
+import ccxt
+
+exchange = ccxt.binance({
+    'apiKey': 'YOUR_API_KEY',
+    'secret': 'YOUR_SECRET'
+})
+balance = exchange.fetch_balance()
+print(balance['total'])
+```
+
+**Generate HD Wallet:**
+
+```python
+from hdwallet import HDWallet
+from hdwallet.symbols import ETH
+
+hdwallet = HDWallet(symbol=ETH)
+hdwallet.from_mnemonic("your twelve word mnemonic phrase here")
+hdwallet.from_path("m/44'/60'/0'/0/0")
+print(f"Address: {hdwallet.p2pkh_address()}")
+print(f"Private Key: {hdwallet.private_key()}")
 ```
 
 ## Installed Libraries
 
-### Crypto & Blockchain
+### Ethereum
 - `web3` - Ethereum interaction
-- `solana`, `solders` - Solana blockchain
-- `base58` - Base58 encoding
-- `eth-account` - Ethereum accounts
+- `eth-account` - Account management
+- `eth-abi` - ABI encoding/decoding
+- `eth-utils` - Utility functions
+
+### Solana
+- `solana` - Solana client
+- `solders` - Low-level Solana primitives
+
+### Bitcoin
 - `bitcoinlib` - Bitcoin utilities
-- `blockcypher` - Blockchain API client
-- `pycryptodome` - Cryptographic functions
+- `blockcypher` - Blockchain API
+
+### Other Chains
+- `tronpy` - Tron blockchain
+- `xrpl-py` - XRP Ledger
+- `stellar-sdk` - Stellar network
+
+### Wallets & Keys
+- `hdwallet` - HD wallet (BIP32/39/44)
+- `mnemonic` - Seed phrase generation
+- `base58` - Base58 encoding
+- `bip32utils` - BIP32 utilities
+
+### Cryptography
+- `pycryptodome` - Crypto primitives
+- `coincurve` - secp256k1 operations
+- `pynacl` - Ed25519/NaCl
+- `ecdsa` - ECDSA signing
+- `cryptography` - General crypto
+
+### Exchange APIs
+- `ccxt` - 100+ exchanges unified API
+- `python-binance` - Binance API
+- `pycoingecko` - Price data
 
 ### HTTP & Networking
-- `requests` - HTTP requests
+- `requests` - HTTP client
 - `aiohttp` - Async HTTP
-- `httpx` - Modern HTTP client
+- `httpx` - Modern HTTP
+- `websockets` - WebSocket client
 
 ### Data Processing
 - `numpy` - Numerical computing
@@ -129,6 +182,103 @@ print(f"Max: {df['prices'].max()}")
 
 ### Standard Library
 All Python standard library modules are available.
+
+## AI System Prompt
+
+Use this system prompt with ChatGPT, Claude, or other AI assistants to generate Python scripts compatible with this bot:
+
+```
+You are a Python script generator for a Telegram bot that executes Python code. Generate scripts that are self-contained, print their output, and work within a 60-second timeout.
+
+INSTALLED LIBRARIES:
+
+Ethereum/EVM:
+- web3 (Web3, Account, Contract interaction)
+- eth-account (Account, signing)
+- eth-abi (encode_abi, decode_abi)
+- eth-utils (to_checksum_address, from_wei, to_wei)
+
+Solana:
+- solana (Client, Keypair, PublicKey, Transaction)
+- solders (low-level primitives)
+
+Bitcoin:
+- bitcoinlib (keys, transactions, wallets)
+- blockcypher (API client)
+
+Other Blockchains:
+- tronpy (Tron)
+- xrpl-py (XRP Ledger)
+- stellar-sdk (Stellar)
+
+Wallet Generation:
+- hdwallet (HDWallet - BIP32/BIP39/BIP44 HD wallets)
+- mnemonic (Mnemonic - seed phrase generation)
+- bip32utils (BIP32 key derivation)
+- base58 (encoding/decoding)
+
+Cryptography:
+- pycryptodome (AES, RSA, SHA256, etc. - import from Crypto)
+- coincurve (fast secp256k1 - PrivateKey, PublicKey)
+- pynacl (Ed25519, Box, SecretBox - import from nacl)
+- ecdsa (ECDSA signing - SigningKey, VerifyingKey)
+- cryptography (general purpose crypto)
+
+Exchange APIs:
+- ccxt (100+ exchanges: ccxt.binance(), ccxt.coinbase(), etc.)
+- python-binance (Binance - Client)
+- pycoingecko (CoinGeckoAPI - price data)
+
+HTTP/Networking:
+- requests (requests.get, requests.post)
+- aiohttp (async HTTP)
+- httpx (modern HTTP client)
+- websockets (WebSocket connections)
+
+Data Processing:
+- numpy (np.array, numerical operations)
+- pandas (pd.DataFrame, data analysis)
+- json (built-in)
+- re (regex, built-in)
+
+RULES:
+1. Always use print() to output results - the bot captures stdout
+2. Handle exceptions gracefully with try/except
+3. For API calls, handle potential network errors
+4. Keep execution under 60 seconds
+5. Do not use input() - there is no interactive input
+6. Do not write to files unless necessary
+7. For async code, use asyncio.run() or asyncio.get_event_loop().run_until_complete()
+8. Include brief comments explaining what the code does
+9. Format output clearly for Telegram (it will be in a code block)
+10. When working with private keys or mnemonics, remind users to never share them
+
+COMMON PATTERNS:
+
+Check wallet balance:
+- Use requests to call RPC endpoints or blockchain APIs
+- Or use the appropriate library (web3 for ETH, solana for SOL, etc.)
+
+Generate wallets:
+- Use hdwallet for HD wallets with mnemonic phrases
+- Use eth-account for simple Ethereum accounts
+- Use coincurve or ecdsa for raw key generation
+
+Get crypto prices:
+- Use pycoingecko for free price data
+- Use ccxt for exchange-specific prices
+
+Interact with exchanges:
+- Use ccxt for unified API across exchanges
+- Use python-binance for Binance-specific features
+
+Sign transactions:
+- Use eth-account for Ethereum
+- Use solders for Solana
+- Use the appropriate chain library for others
+
+When the user asks for a script, generate clean, working Python code that follows these guidelines.
+```
 
 ## Local Development
 
@@ -148,6 +298,7 @@ python bot.py
 - Use `ALLOWED_USERS` in production to restrict who can run code
 - The bot has full network access - be mindful of API rate limits
 - Monitor your Railway usage for unexpected resource consumption
+- Never share private keys or mnemonics in code you send to the bot
 
 ## License
 

@@ -223,28 +223,35 @@ async def libs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     libs_message = """*Installed Libraries:*
 
-*Crypto & Blockchain:*
-- `web3` - Ethereum interaction
-- `solana`, `solders` - Solana blockchain
-- `base58` - Base58 encoding
-- `eth-account` - Ethereum accounts
-- `bitcoinlib` - Bitcoin utilities
-- `blockcypher` - Blockchain API client
-- `pycryptodome` - Cryptographic functions
+*Ethereum:*
+`web3`, `eth-account`, `eth-abi`, `eth-utils`
 
-*HTTP & Networking:*
-- `requests` - HTTP requests
-- `aiohttp` - Async HTTP
-- `httpx` - Modern HTTP client
+*Solana:*
+`solana`, `solders`
 
-*Data Processing:*
-- `numpy` - Numerical computing
-- `pandas` - Data analysis
+*Bitcoin:*
+`bitcoinlib`, `blockcypher`
+
+*Other Chains:*
+`tronpy`, `xrpl-py`, `stellar-sdk`
+
+*Wallets & Keys:*
+`hdwallet`, `mnemonic`, `base58`, `bip32utils`
+
+*Cryptography:*
+`pycryptodome`, `coincurve`, `pynacl`, `ecdsa`, `cryptography`
+
+*Exchange APIs:*
+`ccxt`, `python-binance`, `pycoingecko`
+
+*Networking:*
+`requests`, `aiohttp`, `httpx`, `websockets`
+
+*Data:*
+`numpy`, `pandas`
 
 *Standard Library:*
 All Python standard library modules
-
-Use /start for usage examples.
 """
     await update.message.reply_text(libs_message, parse_mode='Markdown')
 
