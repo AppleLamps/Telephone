@@ -10,6 +10,8 @@ import sys
 import asyncio
 import logging
 import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -25,6 +27,7 @@ BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 ALLOWED_USERS = os.environ.get("ALLOWED_USERS", "").split(",")
 EXECUTION_TIMEOUT = int(os.environ.get("EXECUTION_TIMEOUT", "60"))  # 60 seconds for crypto API calls
 MAX_OUTPUT_LENGTH = 4000
+HEALTHCHECK_PORT = int(os.environ.get("PORT", "8080"))
 
 
 def is_authorized(user_id: int) -> bool:
@@ -272,6 +275,8 @@ def main():
     if not BOT_TOKEN:
         raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required")
 
+    start_healthcheck_server(HEALTHCHECK_PORT)
+
     application = Application.builder().token(BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -282,6 +287,27 @@ def main():
 
     logger.info("Starting bot...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+
+class HealthcheckHandler(BaseHTTPRequestHandler):
+    """Simple healthcheck handler for Railway."""
+
+    def do_GET(self) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(b"ok\n")
+
+    def log_message(self, format: str, *args) -> None:
+        return
+
+
+def start_healthcheck_server(port: int) -> None:
+    """Start a lightweight HTTP server for platform health checks."""
+    server = ThreadingHTTPServer(("0.0.0.0", port), HealthcheckHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    logger.info("Healthcheck server listening on port %s", port)
 
 
 if __name__ == "__main__":
