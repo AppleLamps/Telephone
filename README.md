@@ -1,55 +1,43 @@
-# 🐍 Python Code Executor Telegram Bot
+# Python Code Executor Telegram Bot
 
-A secure Telegram bot that executes Python code in isolated Docker containers. Perfect for testing snippets, learning Python, or quick calculations.
+A powerful Telegram bot that executes Python code with full library support including crypto/blockchain, networking, and data processing. Perfect for running crypto scripts, checking wallet balances, API calls, and more.
 
 ## Features
 
-- 🔒 **Sandboxed Execution**: Code runs in isolated Docker containers
-- ⏱️ **Timeout Protection**: Prevents infinite loops (configurable, default 10s)
-- 💾 **Memory Limits**: Containers limited to 128MB RAM
-- 🚫 **No Network**: Sandbox has no internet access
-- 👤 **User Authorization**: Optional whitelist for allowed users
-- 📦 **Pre-installed Libraries**: numpy, pandas, matplotlib, requests, sympy, scipy
+- **Full Python Execution**: Run any Python code without restrictions
+- **Crypto Libraries**: web3, solana, solders, bitcoinlib, eth-account, and more
+- **Network Access**: Make HTTP requests to APIs (blockchain explorers, etc.)
+- **Timeout Protection**: Configurable timeout (default 60s)
+- **User Authorization**: Optional whitelist for allowed users
+- **Pre-installed Libraries**: numpy, pandas, requests, aiohttp, and crypto packages
 
-## Setup
+## Quick Deploy to Railway
 
 ### 1. Create a Telegram Bot
 
 1. Open Telegram and search for [@BotFather](https://t.me/botfather)
-1. Send `/newbot` and follow the prompts
-1. Copy the API token you receive
+2. Send `/newbot` and follow the prompts
+3. Copy the API token you receive
 
 ### 2. Deploy to Railway
 
-#### Option A: One-Click Deploy
-
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new)
 
-#### Option B: Manual Deploy
-
+Or manually:
 1. Push this code to a GitHub repository
-1. Go to [railway.app](https://railway.app)
-1. Create a new project and select “Deploy from GitHub repo”
-1. Select your repository
+2. Go to [railway.app](https://railway.app)
+3. Create a new project and select "Deploy from GitHub repo"
+4. Select your repository
 
 ### 3. Configure Environment Variables
 
 In Railway dashboard, add these environment variables:
 
-|Variable            |Required|Description                                                      |
-|--------------------|--------|-----------------------------------------------------------------|
-|`TELEGRAM_BOT_TOKEN`|✅ Yes   |Your bot token from BotFather                                    |
-|`ALLOWED_USERS`     |❌ No    |Comma-separated Telegram user IDs (leave empty for public access)|
-|`EXECUTION_TIMEOUT` |❌ No    |Max execution time in seconds (default: 10)                      |
-
-### 4. Enable Docker-in-Docker (Important!)
-
-Railway requires special configuration for Docker-in-Docker:
-
-1. In your Railway project, go to **Settings** → **General**
-1. Enable **“Docker-in-Docker”** or add the service with privileged mode
-
-⚠️ **Note**: If Railway doesn’t support Docker-in-Docker on your plan, see the “Alternative: Process-Based Execution” section below.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TELEGRAM_BOT_TOKEN` | Yes | Your bot token from BotFather |
+| `ALLOWED_USERS` | No | Comma-separated Telegram user IDs (empty = public access) |
+| `EXECUTION_TIMEOUT` | No | Max execution time in seconds (default: 60) |
 
 ## Usage
 
@@ -57,7 +45,8 @@ Railway requires special configuration for Docker-in-Docker:
 
 - `/start` - Welcome message and instructions
 - `/run <code>` - Execute Python code
-- `/id` - Get your Telegram user ID (useful for ALLOWED_USERS)
+- `/libs` - List available libraries
+- `/id` - Get your Telegram user ID
 
 ### Direct Messages
 
@@ -65,92 +54,81 @@ Just send Python code directly to the bot - it will detect and execute it automa
 
 ### Examples
 
-**Simple calculation:**
+**Check Solana Balance:**
 
 ```python
-print(2 ** 100)
+import requests
+
+address = "YOUR_SOLANA_ADDRESS"
+url = "https://api.mainnet-beta.solana.com"
+payload = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "getBalance",
+    "params": [address]
+}
+response = requests.post(url, json=payload)
+balance = response.json()["result"]["value"] / 1e9
+print(f"Balance: {balance} SOL")
 ```
 
-**Using libraries:**
+**Check Ethereum Balance:**
+
+```python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://eth.llamarpc.com'))
+address = "YOUR_ETH_ADDRESS"
+balance = w3.eth.get_balance(address)
+print(f"Balance: {w3.from_wei(balance, 'ether')} ETH")
+```
+
+**Check Bitcoin Balance:**
+
+```python
+import requests
+
+address = "YOUR_BTC_ADDRESS"
+url = f"https://blockchain.info/q/addressbalance/{address}"
+satoshis = int(requests.get(url).text)
+btc = satoshis / 100000000
+print(f"Balance: {btc} BTC")
+```
+
+**Data Processing:**
 
 ```python
 import numpy as np
-arr = np.array([1, 2, 3, 4, 5])
-print(f"Mean: {arr.mean()}")
-print(f"Std: {arr.std()}")
+import pandas as pd
+
+data = {'prices': [100, 150, 120, 180, 200]}
+df = pd.DataFrame(data)
+print(f"Mean: {df['prices'].mean()}")
+print(f"Max: {df['prices'].max()}")
 ```
 
-**Multiline code:**
+## Installed Libraries
 
-```python
-def fibonacci(n):
-    a, b = 0, 1
-    for _ in range(n):
-        yield a
-        a, b = b, a + b
+### Crypto & Blockchain
+- `web3` - Ethereum interaction
+- `solana`, `solders` - Solana blockchain
+- `base58` - Base58 encoding
+- `eth-account` - Ethereum accounts
+- `bitcoinlib` - Bitcoin utilities
+- `blockcypher` - Blockchain API client
+- `pycryptodome` - Cryptographic functions
 
-print(list(fibonacci(10)))
-```
+### HTTP & Networking
+- `requests` - HTTP requests
+- `aiohttp` - Async HTTP
+- `httpx` - Modern HTTP client
 
-## Alternative: Process-Based Execution
+### Data Processing
+- `numpy` - Numerical computing
+- `pandas` - Data analysis
 
-If Railway doesn’t support Docker-in-Docker on your plan, use this simpler version that runs code in a subprocess with `RestrictedPython`:
-
-Create a new `bot_simple.py`:
-
-```python
-import os
-import sys
-import asyncio
-from io import StringIO
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-
-BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-ALLOWED_USERS = os.environ.get("ALLOWED_USERS", "").split(",")
-TIMEOUT = int(os.environ.get("EXECUTION_TIMEOUT", "5"))
-
-# Restricted builtins
-SAFE_BUILTINS = {
-    'print': print, 'len': len, 'range': range, 'int': int, 'float': float,
-    'str': str, 'list': list, 'dict': dict, 'tuple': tuple, 'set': set,
-    'bool': bool, 'abs': abs, 'max': max, 'min': min, 'sum': sum,
-    'sorted': sorted, 'reversed': reversed, 'enumerate': enumerate,
-    'zip': zip, 'map': map, 'filter': filter, 'round': round, 'pow': pow,
-    'True': True, 'False': False, 'None': None,
-}
-
-async def run_code(code: str) -> str:
-    old_stdout = sys.stdout
-    sys.stdout = StringIO()
-    
-    try:
-        exec(code, {"__builtins__": SAFE_BUILTINS})
-        output = sys.stdout.getvalue() or "✓ Executed (no output)"
-    except Exception as e:
-        output = f"❌ Error: {e}"
-    finally:
-        sys.stdout = old_stdout
-    
-    return output[:4000]
-
-# ... rest of handlers same as main bot
-```
-
-Update `requirements.txt`:
-
-```
-python-telegram-bot==21.3
-```
-
-## Security Considerations
-
-⚠️ **Warning**: Running arbitrary code is inherently risky. This bot includes multiple safety measures, but consider:
-
-1. **Always use ALLOWED_USERS** in production to restrict access
-1. **Monitor resource usage** - malicious code could still cause issues
-1. **Review logs** for suspicious activity
-1. **Consider rate limiting** for high-traffic bots
+### Standard Library
+All Python standard library modules are available.
 
 ## Local Development
 
@@ -164,6 +142,12 @@ export TELEGRAM_BOT_TOKEN="your-token-here"
 # Run the bot
 python bot.py
 ```
+
+## Security Notes
+
+- Use `ALLOWED_USERS` in production to restrict who can run code
+- The bot has full network access - be mindful of API rate limits
+- Monitor your Railway usage for unexpected resource consumption
 
 ## License
 
