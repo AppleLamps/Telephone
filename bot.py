@@ -75,8 +75,8 @@ async def run_code_subprocess(code: str) -> str:
                 else:
                     # Ensure we indicate this was an error
                     output = f"[Exit code: {process.returncode}]\n{output}"
-
-            if not output.strip():
+            elif not output.strip():
+                # Process succeeded but produced no output
                 output = "Code executed successfully (no output)"
 
         except asyncio.TimeoutError:
