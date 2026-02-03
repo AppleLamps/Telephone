@@ -57,6 +57,7 @@ async def run_code_subprocess(code: str) -> str:
                 timeout=EXECUTION_TIMEOUT
             )
 
+            # Decode outputs
             output = ""
             if stdout:
                 output += stdout.decode('utf-8', errors='replace')
@@ -67,7 +68,15 @@ async def run_code_subprocess(code: str) -> str:
                 else:
                     output = stderr_text
 
-            if not output.strip():
+            # Check if process failed (non-zero exit code)
+            if process.returncode != 0:
+                if not output.strip():
+                    output = f"Process exited with code {process.returncode} (no output)"
+                else:
+                    # Ensure we indicate this was an error
+                    output = f"[Exit code: {process.returncode}]\n{output}"
+            elif not output.strip():
+                # Process succeeded but produced no output
                 output = "Code executed successfully (no output)"
 
         except asyncio.TimeoutError:
@@ -76,6 +85,8 @@ async def run_code_subprocess(code: str) -> str:
             output = f"Execution timed out after {EXECUTION_TIMEOUT} seconds"
 
     except Exception as e:
+        # Log the full exception for debugging
+        logger.error(f"Execution error: {e}", exc_info=True)
         output = f"Execution failed: {str(e)}"
     finally:
         try:
