@@ -11,6 +11,8 @@ import asyncio
 import logging
 import tempfile
 import threading
+import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -28,6 +30,14 @@ ALLOWED_USERS = os.environ.get("ALLOWED_USERS", "").split(",")
 EXECUTION_TIMEOUT = int(os.environ.get("EXECUTION_TIMEOUT", "60"))  # 60 seconds for crypto API calls
 MAX_OUTPUT_LENGTH = 4000
 HEALTHCHECK_PORT = int(os.environ.get("PORT", "8080"))
+MAX_CONCURRENT_EXECUTIONS = int(os.environ.get("MAX_CONCURRENT_EXECUTIONS", "2"))
+
+# Thread pool bounds the number of user scripts running in parallel.
+EXECUTION_POOL = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_EXECUTIONS)
+# Semaphore queues excess work without blocking the event loop.
+EXECUTION_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENT_EXECUTIONS)
+# Per-user locks prevent a single user from running multiple scripts at once.
+USER_LOCKS: dict[int, asyncio.Lock] = {}
 
 
 def is_authorized(user_id: int) -> bool:
@@ -37,59 +47,39 @@ def is_authorized(user_id: int) -> bool:
     return str(user_id) in ALLOWED_USERS
 
 
-async def run_code_subprocess(code: str) -> str:
-    """Execute Python code in a subprocess with timeout."""
-
-    # Write code to temp file
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+def run_code_subprocess_sync(code: str, timeout: int) -> str:
+    """Execute Python code in a subprocess with timeout (blocking)."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(code)
         temp_file = f.name
 
     try:
-        # Run in subprocess with full Python capabilities
-        process = await asyncio.create_subprocess_exec(
-            sys.executable, '-u', temp_file,  # -u for unbuffered output
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            limit=1024 * 1024 * 5  # 5MB output limit
+        # Run in a subprocess to isolate user code and enforce a hard timeout.
+        result = subprocess.run(
+            [sys.executable, "-u", temp_file],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
         )
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
 
-        try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=EXECUTION_TIMEOUT
-            )
+        output = stdout
+        if stderr:
+            output = f"{stdout}\n[stderr]\n{stderr}" if stdout else stderr
 
-            # Decode outputs
-            output = ""
-            if stdout:
-                output += stdout.decode('utf-8', errors='replace')
-            if stderr:
-                stderr_text = stderr.decode('utf-8', errors='replace')
-                if output:
-                    output += f"\n[stderr]\n{stderr_text}"
-                else:
-                    output = stderr_text
-
-            # Check if process failed (non-zero exit code)
-            if process.returncode != 0:
-                if not output.strip():
-                    output = f"Process exited with code {process.returncode} (no output)"
-                else:
-                    # Ensure we indicate this was an error
-                    output = f"[Exit code: {process.returncode}]\n{output}"
-            elif not output.strip():
-                # Process succeeded but produced no output
-                output = "Code executed successfully (no output)"
-
-        except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
-            output = f"Execution timed out after {EXECUTION_TIMEOUT} seconds"
-
+        if result.returncode != 0:
+            if not output.strip():
+                output = f"Process exited with code {result.returncode} (no output)"
+            else:
+                output = f"[Exit code: {result.returncode}]\n{output}"
+        elif not output.strip():
+            output = "Code executed successfully (no output)"
+    except subprocess.TimeoutExpired:
+        output = f"Execution timed out after {timeout} seconds"
     except Exception as e:
-        # Log the full exception for debugging
-        logger.error(f"Execution error: {e}", exc_info=True)
+        logger.error("Execution error: %s", e, exc_info=True)
         output = f"Execution failed: {str(e)}"
     finally:
         try:
@@ -98,6 +88,38 @@ async def run_code_subprocess(code: str) -> str:
             pass
 
     return output[:MAX_OUTPUT_LENGTH]
+
+
+def get_user_lock(user_id: int) -> asyncio.Lock:
+    """Return (and create) a per-user lock to prevent concurrent runs per user."""
+    if user_id not in USER_LOCKS:
+        USER_LOCKS[user_id] = asyncio.Lock()
+    return USER_LOCKS[user_id]
+
+
+async def run_user_script_safely(code: str, user_id: int) -> tuple[str, bool]:
+    """
+    Run user code without blocking the event loop.
+
+    Returns (output, user_busy).
+    """
+    user_lock = get_user_lock(user_id)
+    if user_lock.locked():
+        return "You already have a script running. Please wait for it to finish.", True
+
+    async with user_lock:
+        # Global semaphore queues jobs to avoid unlimited concurrency on Railway.
+        async with EXECUTION_SEMAPHORE:
+            loop = asyncio.get_running_loop()
+            try:
+                output = await loop.run_in_executor(
+                    EXECUTION_POOL, run_code_subprocess_sync, code, EXECUTION_TIMEOUT
+                )
+            except Exception as e:
+                logger.error("Execution error: %s", e, exc_info=True)
+                output = f"Execution failed: {str(e)}"
+
+    return output, False
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -208,7 +230,11 @@ async def execute_and_reply(update: Update, code: str) -> None:
     status_msg = await update.message.reply_text("Executing...")
 
     try:
-        output = await run_code_subprocess(code)
+        user_id = update.effective_user.id
+        output, user_busy = await run_user_script_safely(code, user_id)
+        if user_busy:
+            await status_msg.edit_text(output)
+            return
 
         # Handle long outputs
         if len(output) > MAX_OUTPUT_LENGTH:
@@ -310,5 +336,4 @@ def start_healthcheck_server(port: int) -> None:
     logger.info("Healthcheck server listening on port %s", port)
 
 
-if __name__ == "__main__":
-    main()
+main()
